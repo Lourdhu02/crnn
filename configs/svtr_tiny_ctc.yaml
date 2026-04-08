@@ -1,0 +1,32 @@
+base: configs/base.yaml
+
+experiment_name: svtr_tiny_ctc
+
+model:
+  tps:
+    enable: true
+    num_fiducial: 20
+  backbone:
+    name: svtr_tiny
+    pretrained: false
+    out_channels: 192
+  sequence:
+    hidden_size: 192
+    num_layers: 2
+    dropout: 0.1
+  head:
+    num_classes: 12
+
+train:
+  data_dir: data/train
+  label_file: data/train_labels.txt
+  batch_size: 64
+  epochs: 300
+
+eval:
+  data_dir: data/val
+  label_file: data/val_labels.txt
+
+test:
+  data_dir: data/test
+  label_file: data/test_labels.txt

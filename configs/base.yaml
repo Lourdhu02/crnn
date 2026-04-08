@@ -1,0 +1,37 @@
+charset: "0123456789."
+blank_index: 0
+img_height: 32
+img_width: 128
+img_channel: 1
+max_seq_len: 12
+
+optimizer:
+  name: Adam
+  lr: 0.001
+  weight_decay: 0.0001
+
+scheduler:
+  name: CosineAnnealingLR
+  T_max: 100
+  eta_min: 0.00001
+
+train:
+  batch_size: 64
+  num_workers: 4
+  epochs: 200
+  warmup_epochs: 5
+  grad_clip: 5.0
+  save_dir: checkpoints
+  log_interval: 10
+  eval_interval: 1
+
+eval:
+  batch_size: 16
+  num_workers: 0
+  beam_size: 0
+
+wandb:
+  project: meter-ocr-crnn
+  entity: null
+  log_images: true
+  log_image_interval: 500
