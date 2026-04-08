@@ -12,3 +12,4 @@ matplotlib>=3.7.0
 onnx>=1.15.0
 onnxruntime>=1.16.0
 editdistance>=0.6.3
+onnxscript

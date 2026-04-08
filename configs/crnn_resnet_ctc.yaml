@@ -6,22 +6,23 @@ model:
   tps:
     enable: true
     num_fiducial: 20
+
   backbone:
     name: resnet34
     pretrained: true
     out_channels: 512
+
   sequence:
     hidden_size: 256
     num_layers: 2
     dropout: 0.1
+
   head:
     num_classes: 12
 
 train:
   data_dir: data/train
   label_file: data/train_labels.txt
-  batch_size: 48
-  epochs: 200
 
 eval:
   data_dir: data/val
