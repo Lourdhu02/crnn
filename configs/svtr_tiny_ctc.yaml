@@ -6,19 +6,17 @@ model:
   tps:
     enable: false
     num_fiducial: 20
-
   backbone:
     name: svtr_tiny
     pretrained: false
     out_channels: 192
-
   sequence:
     hidden_size: 192
     num_layers: 0
     dropout: 0.0
-
   head:
     num_classes: 12
+  label_smoothing: 0.1
 
 optimizer:
   name: Adam
@@ -27,22 +25,22 @@ optimizer:
 
 scheduler:
   name: CosineAnnealingLR
-  T_max: 50
+  T_max: 150
   eta_min: 0.00001
 
 train:
-  data_dir: data/train
-  label_file: data/train_labels.txt
-  batch_size: 96
-  epochs: 150
+  data_dir: datav2/train
+  label_file: datav2/train_labels.txt
+  batch_size: 16
+  epochs: 2
   warmup_epochs: 5
-  grad_clip: 3.0
+  grad_clip: 1.0
 
 eval:
-  data_dir: data/val
-  label_file: data/val_labels.txt
+  data_dir: datav2/val
+  label_file: datav2/val_labels.txt
   beam_size: 3
 
 test:
-  data_dir: data/test
-  label_file: data/test_labels.txt
+  data_dir: datav2/test
+  label_file: datav2/test_labels.txt

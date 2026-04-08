@@ -26,16 +26,18 @@ class MeterDataset(Dataset):
         img_name, label = self.samples[idx]
         path = os.path.join(self.data_dir, img_name)
 
-        image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        # ✅ RGB LOAD
+        image = cv2.imread(path, cv2.IMREAD_COLOR)
         if image is None:
-            raise RuntimeError(path)
+            raise RuntimeError(f"Cannot read image: {path}")
 
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
+        # ✅ AUGMENTATION (returns tensor already)
         if self.transform:
             image = self.transform(image=image)["image"]
 
-        image = image[0].unsqueeze(0)
+        # ⚠️ NO unsqueeze, NO manual tensor conversion
 
         if self.encoder:
             label = self.encoder.encode(label)
@@ -46,7 +48,7 @@ class MeterDataset(Dataset):
 def ctc_collate_fn(batch):
     images, labels = zip(*batch)
 
-    images = torch.stack(images, 0)
+    images = torch.stack(images, 0)   # (B, 3, H, W)
     lengths = torch.tensor([len(l) for l in labels], dtype=torch.long)
     labels = torch.cat(labels)
 

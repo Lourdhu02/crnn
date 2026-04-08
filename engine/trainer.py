@@ -15,12 +15,12 @@ class Trainer:
         self.val_loader = val_loader
         self.config = config
         self.device = device
-        self.best_loss = float("inf")
+        self.best_acc = 0.0
+        self.use_onecycle = config["train"].get("scheduler", "") == "onecycle"
 
-        self.base_dir = "outputs"
-        self.ckpt_dir = os.path.join(self.base_dir, "checkpoints")
-        self.log_dir = os.path.join(self.base_dir, "logs")
-        self.onnx_dir = os.path.join(self.base_dir, "onnx")
+        self.ckpt_dir = os.path.join("outputs", "checkpoints")
+        self.log_dir = os.path.join("outputs", "logs")
+        self.onnx_dir = os.path.join("outputs", "onnx")
 
         os.makedirs(self.ckpt_dir, exist_ok=True)
         os.makedirs(self.log_dir, exist_ok=True)
@@ -44,7 +44,6 @@ class Trainer:
 
     def compute_metrics(self, preds, labels, lengths):
         decoded_preds = self.decode(preds)
-
         idx = 0
         correct = 0
         total = 0
@@ -60,17 +59,23 @@ class Trainer:
 
             total += 1
             total_cer += editdistance.eval(pred, target) / max(len(target), 1)
-
             idx += length
 
         acc = correct / total if total > 0 else 0
         cer = total_cer / total if total > 0 else 0
-
         return acc, cer
 
     def train_epoch(self, epoch):
         self.model.train()
         total_loss = 0
+
+        use_tps = self.config["model"]["tps"]["enable"]
+        if use_tps:
+            freeze_epochs = self.config["model"]["tps"].get("freeze_epochs", 0)
+            if epoch == 1 and freeze_epochs > 0:
+                self.model.freeze_tps()
+            if epoch == freeze_epochs + 1:
+                self.model.unfreeze_tps()
 
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch} [Train]")
 
@@ -91,12 +96,13 @@ class Trainer:
 
             loss = self.loss_fn(preds_perm, labels, input_lengths, lengths)
 
-            loss = loss * 0.9
-
             self.optimizer.zero_grad()
             loss.backward()
             clip_grad_norm_(self.model.parameters(), self.config["train"]["grad_clip"])
             self.optimizer.step()
+
+            if self.use_onecycle and self.scheduler:
+                self.scheduler.step()
 
             total_loss += loss.item()
 
@@ -139,7 +145,6 @@ class Trainer:
                 total_loss += loss.item()
 
                 acc, cer = self.compute_metrics(preds.cpu(), labels.cpu(), lengths.cpu())
-
                 total_acc += acc
                 total_cer += cer
                 count += 1
@@ -152,39 +157,52 @@ class Trainer:
 
         return total_loss / len(self.val_loader), total_acc / count, total_cer / count
 
-    def save(self, epoch, loss):
-        best_path = os.path.join(self.ckpt_dir, "best.pth")
+    def save(self, epoch, val_loss, val_acc):
         last_path = os.path.join(self.ckpt_dir, "last.pth")
+        torch.save({
+            "model": self.model.state_dict(),
+            "epoch": epoch,
+            "val_loss": val_loss,
+            "val_acc": val_acc
+        }, last_path)
 
-        torch.save({"model": self.model.state_dict(), "epoch": epoch, "loss": loss}, last_path)
-
-        if loss < self.best_loss:
-            self.best_loss = loss
-            torch.save({"model": self.model.state_dict(), "epoch": epoch, "loss": loss}, best_path)
+        if val_acc > self.best_acc:
+            self.best_acc = val_acc
+            best_path = os.path.join(self.ckpt_dir, "best.pth")
+            torch.save({
+                "model": self.model.state_dict(),
+                "epoch": epoch,
+                "val_loss": val_loss,
+                "val_acc": val_acc
+            }, best_path)
 
     def export_onnx(self):
         path = os.path.join(self.onnx_dir, "model.onnx")
-        dummy = torch.randn(1,1,self.config["img_height"],self.config["img_width"]).to(self.device)
-        torch.onnx.export(self.model, dummy, path, opset_version=11)
+        dummy = torch.randn(1, 3, 32, 128).to(self.device)
+        self.model.eval()
+        torch.onnx.export(self.model, dummy, path, opset_version=18)
 
     def log(self, text):
         with open(self.log_file, "a") as f:
             f.write(text + "\n")
 
     def fit(self):
-        epochs = self.config["train"]["epochs"]
+        epochs = self.config["train"]["epochs"]  # noqa: F821
 
         for epoch in range(1, epochs + 1):
             train_loss = self.train_epoch(epoch)
             val_loss, val_acc, val_cer = self.validate(epoch)
 
-            if self.scheduler:
+            if self.scheduler and not self.use_onecycle:
                 self.scheduler.step()
 
-            self.save(epoch, val_loss)
+            self.save(epoch, val_loss, val_acc)
 
-            msg = f"Epoch {epoch} | train_loss: {train_loss:.4f} | val_loss: {val_loss:.4f} | val_acc: {val_acc:.3f} | val_cer: {val_cer:.3f}"
+            msg = (
+                f"Epoch {epoch} | train_loss: {train_loss:.4f} | "
+                f"val_loss: {val_loss:.4f} | val_acc: {val_acc:.4f} | val_cer: {val_cer:.4f}"
+            )
             print(msg)
             self.log(msg)
 
-        self.export_onnx()
+        #self.export_onnx()

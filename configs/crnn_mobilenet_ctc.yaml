@@ -6,28 +6,34 @@ model:
   tps:
     enable: true
     num_fiducial: 20
-
+    freeze_epochs: 10
   backbone:
-    name: mobilenet_v3_small
+    name: mobilenet_v3_large
     pretrained: true
     out_channels: 512
-
   sequence:
     hidden_size: 256
     num_layers: 2
     dropout: 0.1
-
   head:
     num_classes: 12
+  label_smoothing: 0.1
 
 train:
-  data_dir: data/train
-  label_file: data/train_labels.txt
+  data_dir: datav2/train
+  label_file: datav2/train_labels.txt
+  batch_size: 16
+  epochs: 2
+  scheduler: onecycle
+  max_lr: 0.001
+  pct_start: 0.1
 
 eval:
-  data_dir: data/val
-  label_file: data/val_labels.txt
+  data_dir: datav2/val
+  label_file: datav2/val_labels.txt
+  beam_size: 5
 
 test:
-  data_dir: data/test
-  label_file: data/test_labels.txt
+  data_dir: datav2/test
+  label_file: datav2/test_labels.txt
+  beam_size: 5
